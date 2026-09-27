@@ -763,7 +763,7 @@ export default function AdminSettings() {
             <Settings className="w-6 h-6 text-cyan-400" />
           </div>
           <div>
-            <h1 className="text-3xl font-display font-bold text-white">Ad Config</h1>
+            <h1 className="text-3xl font-display font-bold text-white">Other Config</h1>
             <p className="text-slate-400">Manage ad networks, creative formats, and dimensions</p>
           </div>
         </div>

@@ -47,7 +47,7 @@ const navSections = [
     label: 'Configuration',
     items: [
       { path: '/admin/datasets', icon: Database, label: 'Dataset Connections' },
-      { path: '/admin/settings', icon: Settings, label: 'Ad Config' },
+      { path: '/admin/settings', icon: Settings, label: 'Other Config' },
     ],
   },
 ];

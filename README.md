@@ -145,7 +145,7 @@ Module access is gated too. The Dairy scope doesn't include the Product Catalog 
 Synthetic data ages. A dataset generated in September looks stale by December, and "last 30 days" charts go empty. RetailIQ handles this in two ways:
 
 1. **Automatic anchor.** At startup, the backend probes `MAX(transaction_date)` and treats that date as "today" for every relative window ("last 7/30/90 days", 4-week velocity). The UI always shows a full, consistent picture, whatever the calendar date.
-2. **Admin top-up.** From **Admin → Ad Config → Data Window**, an admin can extend the data forward to today. A background job appends new transactions with continuing IDs and valid foreign keys, then refreshes the anchor without a restart.
+2. **Admin top-up.** From **Admin → Other Config → Data Window**, an admin can extend the data forward to today. A background job appends new transactions with continuing IDs and valid foreign keys, then refreshes the anchor without a restart.
 
 ![Data window](docs/images/admin-data-window.jpg)
 
@@ -242,7 +242,7 @@ cd frontend && npm install && npm run dev      # http://localhost:3000
 ```
 
 ### Keeping data fresh
-Use **Admin → Ad Config → Data Window**, or run it from the CLI:
+Use **Admin → Other Config → Data Window**, or run it from the CLI:
 ```bash
 python scripts/extend_synthetic_data.py --dry-run         # show the plan
 python scripts/extend_synthetic_data.py --to 2026-12-31   # append through a date

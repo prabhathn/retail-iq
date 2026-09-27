@@ -4,6 +4,17 @@ import { motion } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
 import { extractErrorMessage } from '../services/api';
 import { Leaf, Mail, Lock, User, Building, ArrowRight, AlertCircle } from 'lucide-react';
+import SplitFlap from '../components/SplitFlap';
+import HubDiagram from '../components/HubDiagram';
+
+const FLAP_PHRASES = [
+  'shopper behavior',
+  'store intelligence',
+  'retail media',
+  'product information',
+  'inventory intelligence',
+  'supply chain',
+];
 
 export default function Login() {
   const [isLogin, setIsLogin] = useState(true);
@@ -67,40 +78,21 @@ export default function Login() {
               </div>
               <div>
                 <h1 className="font-display font-bold text-white text-3xl">RetailIQ</h1>
-                <p className="text-retail-400 font-medium">Shopper Intelligence Platform</p>
+                <p className="text-retail-400 font-medium">Retail Intelligence Platform</p>
               </div>
             </div>
             
-            <h2 className="text-4xl lg:text-5xl font-display font-bold text-white leading-tight mb-6">
+            <h2 className="w-fit text-4xl lg:text-5xl font-display font-bold text-white leading-tight mb-6">
               Unlock the power of
-              <span className="gradient-text block">shopper behavior</span>
+              <SplitFlap phrases={FLAP_PHRASES} />
             </h2>
             
-            <p className="text-slate-400 text-lg leading-relaxed max-w-md mb-12">
-              Analyze sales patterns, understand what products are purchased together, 
-              and create targeted shopper segments to drive growth.
+            <p className="text-slate-400 text-lg leading-relaxed max-w-md mb-6">
+              One governed copy of your retail data in Snowflake, connecting every
+              team from marketing to the supply chain.
             </p>
             
-            {/* Feature highlights */}
-            <div className="space-y-4">
-              {[
-                'Real-time sales analytics',
-                'Market basket analysis',
-                'Shopper cohort segmentation',
-                'Store performance metrics'
-              ].map((feature, i) => (
-                <motion.div
-                  key={feature}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.4, delay: 0.3 + i * 0.1 }}
-                  className="flex items-center gap-3"
-                >
-                  <div className="w-2 h-2 rounded-full bg-retail-400"></div>
-                  <span className="text-slate-300">{feature}</span>
-                </motion.div>
-              ))}
-            </div>
+            <HubDiagram />
           </motion.div>
         </div>
       </div>
@@ -120,7 +112,7 @@ export default function Login() {
             </div>
             <div>
               <h1 className="font-display font-bold text-white text-xl">RetailIQ</h1>
-              <p className="text-xs text-slate-400">Shopper Intelligence</p>
+              <p className="text-xs text-slate-400">Retail Intelligence</p>
             </div>
           </div>
           
