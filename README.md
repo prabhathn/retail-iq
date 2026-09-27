@@ -1,6 +1,8 @@
 # RetailIQ — Unified Retail Intelligence on Snowflake
 
-RetailIQ is a demo shopper-intelligence app for a multi-store retailer and its brand partners. Sales, products, stores, shoppers, and partner agreements all live in **one governed copy in Snowflake**. Every persona (merchant, category manager, vendor) works from that same data and sees exactly the slice they are entitled to.
+![RetailIQ login](docs/images/login.jpg)
+
+RetailIQ is a demo retail-intelligence app for a multi-store retailer and its brand partners. Sales, products, stores, shoppers, and partner agreements all live in **one governed copy in Snowflake**. Every persona (merchant, category manager, vendor) works from that same data and sees exactly the slice they are entitled to.
 
 ![Dashboard](docs/images/dashboard.jpg)
 
