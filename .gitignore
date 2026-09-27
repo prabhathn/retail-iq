@@ -1,0 +1,24 @@
+# Secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.p8
+*.key
+.pgpass
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# Node / build
+node_modules/
+dist/
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
+.snowflake/

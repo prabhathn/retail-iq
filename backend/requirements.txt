@@ -1,0 +1,17 @@
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+sqlalchemy==2.0.25
+psycopg2-binary==2.9.9
+snowflake-connector-python[pandas]==3.6.0
+python-dotenv==1.0.0
+pydantic[email]==2.5.3
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+bcrypt==4.0.1
+python-multipart==0.0.6
+pandas==2.1.4
+numpy==1.26.3
+# Used by app/routes/cortex_agent.py for streaming Cortex Agent REST calls.
+# Previously resolved only transitively; pinned explicitly.
+httpx>=0.27,<1.0
+
