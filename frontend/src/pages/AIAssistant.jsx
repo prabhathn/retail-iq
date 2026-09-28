@@ -739,11 +739,17 @@ Your data access is automatically filtered based on your permissions. Just ask m
     setError(null);
   };
 
+  // Each question spans at least two areas of the model (sales, margin,
+  // promotions, inventory, supply chain, retail media, calendar) so the agent
+  // has to join and reason, not just look up a single metric. Supplier
+  // personas get a governed "not entitled" answer on the margin question.
   const suggestedQuestions = [
-    "What are our top 5 selling products?",
-    "Show me sales trends for the last 30 days",
-    "Which store has the highest revenue?",
-    "What's the average basket size by category?"
+    "Which categories grew revenue this fiscal quarter vs. the same quarter last year, and did margin % move with them?",
+    "For the 5 products with the most out-of-stock days last month, how much revenue did they lose compared to their in-stock days?",
+    "Are vendor-funded promotions driving a higher share of sales than retailer-funded ones, and which categories lean on promotions most?",
+    "Which vendors have the worst on-time delivery, and are their products out of stock more often than average?",
+    "Compare ROAS by campaign type and tell me which placement delivered the most attributed sales per dollar",
+    "What share of revenue comes from loyalty members versus non-members at each store format, and how does basket value differ?"
   ];
 
   return (
