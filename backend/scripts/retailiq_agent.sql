@@ -22,7 +22,7 @@ USE SCHEMA PUBLIC;
 
 CREATE OR REPLACE AGENT RETAILIQ_ANALYTICS.PUBLIC.RETAILIQ_AGENT
 WITH PROFILE = '{"display_name": "RetailIQ Agent"}'
-    COMMENT = 'You are a helpful agent that can help retail merchants answer questions about their category or brand vendors answer questions about their brands and shoppers.'
+    COMMENT = 'Answers questions about sales, margin, promotions, inventory, supply chain, retail media and shoppers for retail merchants and their brand partners.'
 FROM SPECIFICATION $$
 {
   "models": {
@@ -35,12 +35,22 @@ FROM SPECIFICATION $$
         "question": "What were my top performing items in the most recent week?"
       },
       {
-        "question": "What is the rough demographic profile of my top spenders?"
+        "question": "What was gross margin by category last fiscal quarter?"
       },
       {
-        "question": "How many transactions did I have last month?"
+        "question": "Which stores had the worst in-stock rate last month?"
+      },
+      {
+        "question": "What is the fill rate and on-time delivery by vendor?"
+      },
+      {
+        "question": "How much of my revenue was sold on promotion?"
+      },
+      {
+        "question": "What was the ROAS of my retail media campaigns?"
       }
-    ]
+    ],
+    "response": "Cost, COGS, gross profit and margin are retailer-confidential. If those values come back empty, tell the user their role is not entitled to cost or margin data - never estimate, infer or back into them from other numbers. Describe retail media ROAS as attributed, not incremental."
   },
   "tools": [
     {
@@ -58,7 +68,8 @@ FROM SPECIFICATION $$
         "type": "warehouse",
         "warehouse": ""
       },
-      "semantic_view": "RETAILIQ_ANALYTICS.PUBLIC.RETAILIQ_SV"
+      "semantic_view": "RETAILIQ_ANALYTICS.PUBLIC.RETAILIQ_SV",
+      "description": "RETAILIQ_SV covers the whole retail model in RETAILIQ_ANALYTICS.PUBLIC.\n- Sales: TRANSACTIONS (basket, store, shopper, date, time, channel) and TRANSACTION_ITEMS (units, price, discount, cost, promotion). Metrics: revenue (gross), net revenue, units, baskets, basket value, discount rate, promo share, COGS, gross profit and margin %.\n- Products and VENDORS (brand owners, lead times); STORES (region, city, format, square feet, open and comp dates); SHOPPERS (demographics, loyalty, home store); COHORTS and COHORT_MEMBERS.\n- DIM_DATE: 4-5-4 fiscal calendar, holidays, same day last year.\n- PROMOTIONS: price cuts, coupons, loyalty prices, BOGO, and who funds them.\n- INVENTORY_DAILY: end-of-day on hand, out of stock, days of supply (a snapshot - never summed across days).\n- PURCHASE_ORDER_LINES: vendor replenishment orders; fill rate, on-time delivery, lead time.\n- CAMPAIGNS and AD_DELIVERY_DAILY: retail media impressions, clicks, spend, CTR and ROAS.\nRow access policies restrict every table to the caller's categories, brands or vendor. Cost and margin are masked (NULL) for supplier roles."
     }
   }
 }

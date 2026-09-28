@@ -108,7 +108,11 @@ EXISTS (SELECT 1 FROM role_entitlements
                OR (tenant_type = 'brand'    AND tenant_id = brand)))
 ```
 
-Granting a vendor access to a new brand is one `INSERT` into `role_entitlements`. No code change, no new extract, and the dashboards, APIs, and AI Assistant all pick it up at once.
+Granting a vendor access to a new brand is one `INSERT` into `role_entitlements`. No code change, no new extract, and the dashboards, APIs, and AI Assistant all pick it up at once. Besides `all`, `category` and `brand`, there is a `vendor` entitlement: it covers every brand the supplier owns (via `vendor_brands`), so a manufacturer with several brands needs one row, not one per brand.
+
+The policies deliberately check `CURRENT_ROLE()` and not `IS_ROLE_IN_SESSION()`. The app's service user holds every `RETAILIQ_ROLE_*` and runs with secondary roles, so `IS_ROLE_IN_SESSION('RETAILIQ_ROLE_ADMIN')` is true inside a Dairy-manager session and would give every persona full access.
+
+**Cost and margin are retailer-only.** A masking policy (`cost_mask`) on every cost column returns the value only to roles whose entitlements are all `all` or `category`. Brand and vendor roles get `NULL`, so margin comes back empty for suppliers on every path: dashboards, raw SQL, Cortex Analyst, and the agent. The agent is also instructed to say the user isn't entitled rather than estimate. It's enforced by the database, not by the prompt.
 
 **Same screen, different entitlement.** The admin sees the full catalog (254 products, 10 categories):
 
@@ -151,26 +155,63 @@ Synthetic data ages. A dataset generated in September looks stale by December, a
 
 ![Data window](docs/images/admin-data-window.jpg)
 
+A top-up also rebuilds the extended data model for the new days (see below), so cost, promotions, inventory, and purchase orders never stop at the old edge.
+
+---
+
+## Retail data model
+
+The sales star schema (`transactions`, `transaction_items`, `products`, `stores`, `shoppers`) is extended into a full retail model. Every table is in `RETAILIQ_SV`, governed by the same entitlements.
+
+| Area | Tables | What it answers |
+|---|---|---|
+| Calendar | `dim_date` | 4-5-4 fiscal weeks, periods, and quarters; holidays; same day last year for like-for-like YoY |
+| Partners | `vendors`, `vendor_brands` | Who owns each brand, lead times, and payment terms; drives `vendor` entitlements |
+| Merchandising | `products.unit_cost`, `transaction_items.unit_cost` (masked) | COGS, gross profit, and margin % (retailer roles only) |
+| Stores | `stores` city, state, coordinates, square feet, format, open date, comp start date | Sales per square foot, comparable-store sales, maps |
+| Shoppers | `shoppers` home store, loyalty enrolment date, ZIP3 | Loyalty tenure, trade area, shopping outside the home store |
+| Transactions | `transactions` timestamp and channel | Dayparting; in-store vs. pickup vs. delivery |
+| Promotions | `promotions`, `transaction_items.promotion_id` | Which deal drove a discount, promo share of sales, vendor- vs. retailer-funded |
+| Inventory | `inventory_daily` (snapshot) | In-stock and out-of-stock rate, days of supply |
+| Supply chain | `purchase_order_lines`, `purchase_orders` view | Fill rate, on-time delivery, lead time by vendor |
+| Retail media | `campaigns`, `ad_delivery_daily` | Spend, CTR, and ROAS by campaign and placement |
+| Cohorts | `cohorts`, `cohort_members` | Metrics by named shopper cohort |
+
+`scripts/extend_data_model.py` builds all of it **from the existing sales history**, deterministically, so IDs and gross revenue don't move:
+
+- **Promotions.** Promotions are real two-week windows per product. Each line's discount is re-derived from the promotion running that day. Loyalty prices apply only to members.
+- **Inventory.** Stock is simulated per store and product against actual daily sales, replenished by the purchase orders it places: order-up-to, with realistic late and short deliveries. So `on_hand = previous on_hand + received - sold` holds on every row.
+- **Retail media.** Delivery is generated for seven demo campaigns, which the script seeds in the app, and the campaigns' lifetime totals are reconciled to the daily numbers.
+
+**Cohorts and campaigns come from Postgres through managed mirroring.** They're created in the app, so they live in Postgres. `scripts/retailiq_mirror.sql` sets up a [Snowflake Postgres mirror](https://docs.snowflake.com/en/user-guide/snowflake-postgres/postgres-data-mirroring) of exactly two tables, `shopper_cohorts` and `campaigns`, into `RETAILIQ_PG_MIRROR`, refreshed every 5 minutes. No sync code, and a cohort created in the app appears in Snowflake within minutes.
+
+Only named tables are mirrored: the schema also holds `users` (password hashes). Analytics reads the mirror through secure views (`cohorts`, `campaigns`) that apply the entitlements.
+
 ---
 
 ## Architecture
 
 ```
-┌──────────────────────┐    JWT     ┌───────────────────────────┐
+┌──────────────────────┐    JWT    ┌───────────────────────────┐
 │ React + Vite + TW    │──────────▶│ FastAPI (backend/app)     │
 │ frontend/            │◀──────────│  routes/*  auth, admin,   │
-└──────────────────────┘            │  analytics, operations,   │
-                                    │  cohorts, cortex_agent…   │
-                                    └─────┬──────────────┬──────┘
-                        app state (users, │              │ analytics as the user's role
-                        scopes, modules,  │              │ (USE ROLE RETAILIQ_ROLE_*)
-                        cohorts, jobs)    ▼              ▼
-                           ┌────────────────────┐ ┌──────────────────────────────┐
-                           │ Snowflake Postgres │ │ Snowflake RETAILIQ_ANALYTICS │
-                           │  RETAILIQ_PG       │ │  tables + row access policies│
-                           └────────────────────┘ │  RETAILIQ_SV (semantic view) │
-                                                  │  RETAILIQ_AGENT (Cortex)     │
-                                                  └──────────────────────────────┘
+└──────────────────────┘           │  analytics, operations,   │
+                                   │  cohorts, cortex_agent…   │
+                                   └─────┬──────────────┬──────┘
+                       app state (users, │              │ analytics as the user's role
+                       scopes, modules,  │              │ (USE ROLE RETAILIQ_ROLE_*)
+                       cohorts, jobs)    ▼              ▼
+                     ┌────────────────────┐    ┌──────────────────────────────┐
+                     │ Snowflake Postgres │    │ Snowflake RETAILIQ_ANALYTICS │
+                     │  RETAILIQ_PG       │    │  tables, row access and      │
+                     └─────────┬──────────┘    │  masking policies            │
+                               │ managed       │  secure views over mirror    │
+                               │ mirror        │  RETAILIQ_SV (semantic view) │
+                               ▼               │  RETAILIQ_AGENT (Cortex)     │
+                     ┌────────────────────┐    └──────────────▲───────────────┘
+                     │ RETAILIQ_PG_MIRROR │───────────────────┘
+                     │ cohorts, campaigns │
+                     └────────────────────┘
 ```
 
 - **Frontend**: React 18, Vite, and Tailwind. `DateAnchorContext` supplies the anchor date to every page.
@@ -181,7 +222,7 @@ Synthetic data ages. A dataset generated in September looks stale by December, a
 Users, scopes, saved cohorts, automations, and job status are small, row-at-a-time OLTP writes. They need low-latency reads on every request, and they need to work *before* a Snowflake role has been chosen. Postgres suits that; Snowflake suits the analytics. Snowflake Postgres keeps both inside one Snowflake account, with one bill and one set of network policies.
 
 **Cost note:** a Snowflake Postgres instance bills compute continuously while it is running. There is no auto-suspend. The smallest instance is roughly 0.85 credits/day (check `POSTGRES_COMPUTE` usage in your account). Run `ALTER POSTGRES INSTANCE RETAILIQ_PG SUSPEND;` when you aren't demoing, and `... RESUME;` before starting the backend. Suspending keeps the data.
-- **Analytics**: the `RETAILIQ_ANALYTICS.PUBLIC` tables `transactions`, `transaction_items`, `products`, `stores`, `shoppers`, and `role_entitlements`, plus `USER_DOCUMENTS_STAGE`.
+- **Analytics**: the `RETAILIQ_ANALYTICS.PUBLIC` sales tables plus the extended model above, `role_entitlements`, and `USER_DOCUMENTS_STAGE`.
 - **AI**: the `RETAILIQ_SV` semantic view feeds the `RETAILIQ_AGENT` Cortex Agent, called over REST with a PAT.
 
 ---
@@ -232,6 +273,12 @@ SNOWFLAKE_SETUP_ROLE=ACCOUNTADMIN python scripts/generate_synthetic_data.py   # 
 python scripts/init_postgres.py                                                # users, scopes, modules
 ```
 
+Then mirror the app tables and build the extended model. The mirror needs a STANDARD or HIGH MEMORY Postgres instance on AWS or Azure, and the target database must not exist yet:
+```bash
+snow sql -f scripts/retailiq_mirror.sql          # as ACCOUNTADMIN
+python -m scripts.extend_data_model              # runs retailiq_data_model.sql, then derives the data
+```
+
 ### 6. Semantic view and agent
 Run `backend/scripts/retailiq_semantic_view.sql`, then `backend/scripts/retailiq_agent.sql`, as ACCOUNTADMIN (or any role with CREATE SEMANTIC VIEW / CREATE AGENT on the schema).
 
@@ -248,12 +295,15 @@ Use **Admin → Other Config → Data Window**, or run it from the CLI:
 ```bash
 python scripts/extend_synthetic_data.py --dry-run         # show the plan
 python scripts/extend_synthetic_data.py --to 2026-12-31   # append through a date
+python -m scripts.extend_data_model --skip-ddl            # then re-derive the extended model (the admin job does this for you)
 ```
 
 ### Gotchas
 - **ACCOUNTADMIN sees zero rows.** It has no entry in `role_entitlements`. Query as `RETAILIQ_ROLE_ADMIN` instead.
 - The loader truncates and appends into the typed DDL. Don't switch it to `write_pandas(overwrite=True)`, which recreates the tables with TEXT/FLOAT columns.
 - The top-up role needs `CREATE STAGE` on the schema, because `write_pandas` stages files.
+- `generate_synthetic_data.py` recreates the base tables, which drops the extended columns. Rerun `python -m scripts.extend_data_model` afterwards.
+- The mirror's target database can't be reused, even after the mirror is dropped. Pick a new name if you recreate it. Don't revoke `USAGE` on the Postgres instance from the `snowflake` application while a mirror is running.
 
 ---
 
@@ -265,6 +315,9 @@ This is a demo, not production-hardened. Before exposing it beyond a trusted net
 - **Error detail leaks.** `/config/date-anchor` and several error responses return the raw connector message, which can include the account hostname. Log it server-side and return a generic message instead.
 - **Demo credentials** are seeded in plain text by `init_postgres.py`, and the login page accepts sign-ups.
 - **Local-first storage.** JWTs are stored in `localStorage`.
+- **Synthetic extended model.** Costs, store attributes, promotions, inventory, purchase orders, and ad delivery are simulated, and the vendor-to-brand map is illustrative. Retail-media attributed sales are same-day sales of the targeted products, not measured incrementality.
+- **Brand-targeted campaigns** are visible to that brand's vendor and to admins, but not to category managers of the brand's category.
+- **Postgres mirroring is in preview**, and is available on AWS and Azure only.
 
 ## License
 Demo/sample code provided as-is.

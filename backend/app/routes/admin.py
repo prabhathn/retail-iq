@@ -1695,6 +1695,16 @@ def _run_extend_job(job_id: int, target_date_str: Optional[str]):
         )
         result = extend_data(target_date=target, progress_cb=progress_cb)
 
+        # New sales days need the extended model (cost, promotions, inventory,
+        # purchase orders, retail media) derived for them too, otherwise margin
+        # and inventory would silently stop at the old right edge.
+        if result.get("status") == "success":
+            from scripts.extend_data_model import refresh as refresh_data_model
+            refresh_data_model(
+                skip_ddl=True,
+                progress_cb=lambda stage, pct, detail="": progress_cb(f"data model: {stage}", pct, detail),
+            )
+
         job.status = result.get("status", "failed")
         job.from_date = result.get("first_new_date")
         job.days_added = result.get("days_added") or 0
