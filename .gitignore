@@ -22,3 +22,6 @@ dist/
 .vscode/
 .idea/
 .snowflake/
+
+# Local Cortex Code working files
+cortex_project/
